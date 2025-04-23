@@ -2,4 +2,6 @@ pandas
 pyomo
 # cplex
 gurobipy
+loguru
 openpyxl
+pyarrow
