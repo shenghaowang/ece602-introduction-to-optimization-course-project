@@ -7,15 +7,32 @@ Original file is located at
     https://colab.research.google.com/drive/1wOdI1wr4domE37qyDjkLWwI_Ee1QlRxz
 """
 
+import time
+
 import pandas as pd
+from loguru import logger
 from pyomo.environ import (
     ConcreteModel, RangeSet, Param, Var, NonNegativeReals, Binary,
     Constraint, Objective, minimize, Set, value, SolverFactory, TerminationCondition
 )
 
 
+def main():
+    feedstock_data = "data/feedstock_data.parquet"
+    distance_data = "data/distance_data.parquet"
+    
+    # Load the data
+    data = load_data(feedstock_data, distance_data)
+    model = create_model(data)
+
+    #Attach OD sheet labels to the model for later use in output
+    model.O_labels = data['O_labels']
+    model.D_labels = data['D_labels']
+    solve_and_output(model, "Solution_file_cost_min_f100.xlsx")
+
+
 #Import data
-def load_data(excel_file):
+def load_data(feedstock_data, distance_data):
 
     #Parameters
     num_O_cells = 3996
@@ -36,29 +53,15 @@ def load_data(excel_file):
     FW_energy = 2.122875 #GJ/tonne of food waste (energy content) (aka s)
     FW_transport_cost = 1.09869 # $/km cost of transporting foodwaste
 
-    #Get data into variables
-    d_feedstock = pd.read_excel(
-        excel_file,
-        sheet_name="All_Feedstock",
-        header=0,
-        usecols=[
-            "FW_available", #Tonnes of foodwaste available in each cell
-            "M_available", #Tonnes of manure available in each cell
-            "M_CH4_potential", #manure methane potential (m^3/tonne)
-            "Dist_pipeline", #distance of cell to nearest pipeline
-            "M_pot_out_plant" #Potential plant output of manure #Energy content of manure in the cell (GJ/tonne)?
-        ],
-        nrows = num_O_cells
-    )
+    # Load feedstock data
+    start_time = time.time()
+    d_feedstock = pd.read_parquet(feedstock_data)
+    logger.info(f"Loaded feedstock data in {time.time() - start_time:.2f} seconds.")
 
-    #Identify feasible OD pairs
-    d_distance = pd.read_excel(
-        excel_file,
-        sheet_name="OD",
-        header= 0,
-        index_col= 0,
-        nrows= num_O_cells
-    )
+    # Load OD pair distance data
+    start_time = time.time()
+    d_distance = pd.read_parquet(distance_data)
+    logger.info(f"Loaded distance data in {time.time() - start_time:.2f} seconds.")
 
     #Matrix of distances as a numpy array
     distance_matrix = d_distance.values
@@ -75,16 +78,20 @@ def load_data(excel_file):
         D_sum = sum(D_labels_numeric)
 
         if abs(O_sum - D_sum) > 1e-6:
-            print("Warning: sum of O-headers is", O_sum, ". Expected:", expected_sum)
+            logger.warning(f"Sum of O-headers is: {O_sum}. Expected: {expected_sum}")
+
         else:
-            print("O-headers check passed")
+            logger.info("O-headers check passed")
+        
         if abs(D_sum - expected_sum) > 1e-6:
-          print("Warning: sum of D-headers is", D_sum, ". Expected:", expected_sum)
+            logger.warning(f"Sum of D-headers is: {D_sum}. Expected: {expected_sum}")
+
         else:
-            print("D-headers check passed")
+            logger.info("D-headers check passed")
 
     except Exception as e:
-        print("Could not convert headers to numeric for checking:", e)
+        logger.exception("Could not convert headers to numeric for checking:", e)
+
 
     #create "data" dictionary to pass to model
 
@@ -192,6 +199,7 @@ def create_model(data):
     En_cont_FW = data['FW_transport_cost'] #GJ/tonne of FW, so the energy content of food waste.
     rng_price = 24 #May need updated value? $/GJ
 
+    feasible_fw_req = (En_cont_FW * rng_price) / Cost_transp
     for i in range(1, m.numO+1):
         #Manure check
         if data['M_available'][i-1] > 0:
@@ -199,16 +207,15 @@ def create_model(data):
             for j in range(1, m.numD+1):
                 if data['Distance'][i-1, j-1] <= feasible_m_req:
                     feas_M_pairs.append((i,j))
+
         #Foodwaste check
         if data['FW_available'][i-1] > 0:
-            feasible_fw_req = (En_cont_FW * rng_price) / Cost_transp
             for j in range(1, m.numD+1):
                 if data['Distance'][i-1,j-1] <= feasible_fw_req:
                     feas_FW_pairs.append((i,j))
 
     m.FEAS_M = Set(initialize=feas_M_pairs, dimen=2)
     m.FEAS_FW = Set(initialize=feas_FW_pairs, dimen=2)
-
 
     #DECISION VARIABLES
     m.M_moved   = Var(m.FEAS_M, within=NonNegativeReals)
@@ -229,7 +236,8 @@ def create_model(data):
         PlaceH = 10.7 #coefficient derived from a formula used to calculate the present value of future payments.
 
         #Transport cost = manure transp cost + fw transp cost
-        transport_cost = sum(PlaceC * m_.M_moved[i, j] for (i, j) in m_.FEAS_M) + sum(PlaceD * m_.FW_moved[i, j] for (i, j) in m_.FEAS_FW)
+        transport_cost = sum(PlaceC * m_.M_moved[i, j] for (i, j) in m_.FEAS_M) + \
+            sum(PlaceD * m_.FW_moved[i, j] for (i, j) in m_.FEAS_FW)
 
         capex_sum = (sum(PlaceE * m_.Alpha[j] for j in m_.D)
                         + transport_cost
@@ -239,9 +247,11 @@ def create_model(data):
         opex_part = capex_sum * m_.OPEX_factor_AD
 
         #Feedstock transport = manure transp + feadstock transp
-        feadstock_transport = sum((PlaceF * m_.Distance_OD[i, j] + 0.5) * m_.M_moved[i, j] for (i, j) in m_.FEAS_M) + sum(PlaceG * m_.Distance_OD[i, j] * m_.FW_moved[i, j] for (i, j) in m_.FEAS_FW)
+        feedstock_transport_manure = sum((PlaceF * m_.Distance_OD[i, j] + 0.5) * m_.M_moved[i, j] for (i, j) in m_.FEAS_M)
+        feedstock_transport_feedstock = sum(PlaceG * m_.Distance_OD[i, j] * m_.FW_moved[i, j] for (i, j) in m_.FEAS_FW)
+        feedstock_transport = feedstock_transport_feedstock + feedstock_transport_manure
 
-        return  m_.Cost == unfinanced + PlaceH * (feadstock_transport + financed + opex_part)
+        return  m_.Cost == unfinanced + PlaceH * (feedstock_transport + financed + opex_part)
 
     m.CostDefinition = Constraint(rule=cost_eq_rule)
 
@@ -328,8 +338,8 @@ def solve_and_output(model, out_file = "Solution_cost_min.xlsx"):
     results = solver.solve(model, tee=True)
 
     #Need to check if solver "worked"
-    print("Solver Status:", results.solver.status)
-    print("Termination Condition:", results.solver.termination_condition)
+    logger.info(f"Solver Status: {results.solver.status}")
+    logger.info(f"Termination Condition: {results.solver.termination_condition}")
 
     feasible_conditions = {
         TerminationCondition.optimal,
@@ -375,21 +385,14 @@ def solve_and_output(model, out_file = "Solution_cost_min.xlsx"):
             df_ad = pd.DataFrame(ad_solution, columns=['Destination','AD_plant'])
             df_ad.to_excel(writer, sheet_name='AD_plant', index=False)
 
-        print(f'Solution written to {out_file}')
-    else:
-        print('No feasible (or optimal) solution found. Solver status:')
-        print('Status =', results.solver.status)
-        print('Termination =', results.solver.termination_condition)
-        print('No solution file will be written.')
+        logger.info(f'Solution written to {out_file}')
 
+    else:
+        logger.info('No feasible (or optimal) solution found. Solver status:')
+        logger.info(f"Status = {results.solver.status}")
+        logger.info(f"Termination = {results.solver.termination_condition}")
+        logger.info("No solution file will be written.")
 
 
 if __name__ == '__main__':
-    data = load_data(excel_file="data_class_project.xlsx")
-    model = create_model(data)
-
-    #Attach OD sheet labels to the model for later use in output
-    model.O_labels = data['O_labels']
-    model.D_labels = data['D_labels']
-    solve_and_output(model, "Solution_file_cost_min_f100.xlsx")
-
+    main()
