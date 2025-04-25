@@ -5,15 +5,19 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from loguru import logger
 
+from config import Config, FilePaths
+
 
 def main():
-    data_file = "data_class_project.xlsx"
-    num_cells = 3996
-        
-    logger.info(f"Loading feedstock data from {data_file} ...")
+    config = Config()
+    file_paths = FilePaths()
+    num_cells = config.num_O_cells
+    
+    # Load all feeedstock data
+    logger.info(f"Loading all feedstock data from {file_paths.data_file} ...")
     start_time = time.time()
     feedstock_df = pd.read_excel(
-        data_file,
+        file_paths.data_file,
         sheet_name="All_Feedstock",
         header=0,
         usecols=[
@@ -25,12 +29,13 @@ def main():
         ],
         nrows = num_cells
     )
-    logger.info(f"Loaded feedstock data in {time.time() - start_time:.2f} seconds.")
-    logger.debug(f"Feedstock data: {feedstock_df.shape}")
+    logger.info(f"Loaded all feedstock data in {time.time() - start_time:.2f} seconds.")
+    logger.debug(f"All feedstock data: {feedstock_df.shape}")
 
+    # Load distance data
     start_time = time.time() 
     distance_df = pd.read_excel(
-        data_file,
+        file_paths.data_file,
         sheet_name="OD",
         header= 0,
         index_col= 0,
@@ -38,28 +43,54 @@ def main():
     )
     logger.info(f"Loaded distance data in {time.time() - start_time:.2f} seconds.")
     logger.debug(f"Distance data: {distance_df.shape}")
+
+    # Load feedstock by category data
+    logger.info("Loading feedstock by category data...")
+    start_time = time.time()
+    feedstock_by_category_df = pd.read_excel(
+        file_paths.data_file,
+        sheet_name="Feedstock Categorized",
+        header=0,
+        usecols=[
+            "Beef Manure",
+            "Dairy Manure",
+            "Broiler Manure",
+            "Pigs Manure",
+        ],
+        nrows=num_cells
+    )
+    logger.info(f"Loaded feedstock by category data in {time.time() - start_time:.2f} seconds.")
+    logger.debug(f"Feedstock by category data: {feedstock_by_category_df.shape}")
     
     # Convert dataframes to PyArrow tables and save as Parquet files
     feedstock_table = pa.Table.from_pandas(feedstock_df)
-    pq.write_table(feedstock_table, "data/feedstock_data.parquet")
-    logger.info("Feedstock data saved to feedstock_data.parquet")
+    pq.write_table(feedstock_table, file_paths.feedstock_data)
+    logger.info(f"Feedstock data saved to {file_paths.feedstock_data}")
 
     distance_table = pa.Table.from_pandas(distance_df)
-    pq.write_table(distance_table, "data/distance_data.parquet")
-    logger.info("Distance data saved to distance_data.parquet")
+    pq.write_table(distance_table, file_paths.distance_data)
+    logger.info(f"Distance data saved to {file_paths.distance_data}")
+
+    feedstock_by_type_table = pa.Table.from_pandas(feedstock_by_category_df)
+    pq.write_table(feedstock_by_type_table, file_paths.feedstock_by_type_data)
+    logger.info(f"Feedstock by category data saved to {file_paths.feedstock_by_type_data}")
 
     # Load the Parquet files to verify
     logger.info("Loading Parquet files to verify...")
     start_time = time.time()
-    feedstock_df = pd.read_parquet("data/feedstock_data.parquet")
+    feedstock_df = pd.read_parquet(file_paths.feedstock_data)
     logger.info(f"Loaded feedstock data in {time.time() - start_time:.2f} seconds.")
     logger.info(f"Feedstock data loaded from Parquet: {feedstock_df.shape}")
     
     start_time = time.time()
-    distance_df = pd.read_parquet("data/distance_data.parquet")
+    distance_df = pd.read_parquet(file_paths.distance_data)
     logger.info(f"Distance data loaded from Parquet: {distance_df.shape}")
     logger.info(f"Loaded distance data in {time.time() - start_time:.2f} seconds.")
 
+    start_time = time.time()
+    feedstock_by_category_df = pd.read_parquet(file_paths.feedstock_by_type_data)
+    logger.info(f"Feedstock by category data loaded from Parquet: {feedstock_by_category_df.shape}")
+    logger.info(f"Loaded feedstock by category data in {time.time() - start_time:.2f} seconds.")
 
 
 if __name__ == '__main__':
