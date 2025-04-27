@@ -17,7 +17,6 @@ class Config:
     MCE: float = 0.85   #methane capture efficiency from the digestor [-] (aka eta, small)
     Amt_financed: float = 0.75  #portion of capital cost financed? fraction [-]
     C_pipe: int = 1208194   #$/km capital cost for building connecting pipelines from the digestor
-    f: float = 3.0  # Energy / Emissions constraint; set f=1 as default
     PV_FP_coeff: float = 10.7   #coefficient derived from a formula used to calculate the present value of future payments
     FW_energy: float = 2.122875 #GJ/tonne of food waste (energy content) (aka s)
     FW_transport_cost: float = 1.09869  # $/km cost of transporting foodwaste
@@ -25,6 +24,8 @@ class Config:
     Min_Capacity: int = 30000   #tonnes of feedstock per year, capacity of digester
     Max_Capacity: int = 120000  #tonnes of feedstock per year, capacity of digester
     expected_cell_id_sum: int = 408848344
+
+    f: float = 1.0  # Energy / Emissions constraint; set f=1 as default
 
     # Part 2
     Beef_EF: float = 0.143  # kg N2O per tonne of manure
