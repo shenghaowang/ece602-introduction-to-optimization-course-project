@@ -71,6 +71,7 @@ def create_model(
     m.CH4_cont_off_farm = Param(initialize=config.CH4_cont_off_farm)
     m.OPEX_factor_AD = Param(initialize=config.OPEX_factor_AD)
     m.En_cont_CH4 = Param(initialize=config.En_cont_CH4)
+    m.f = Param(initialize=config.f)
 
     # Indexed parameters (for each O or D)
     ## initial manure available in the cell
@@ -79,12 +80,10 @@ def create_model(
 
     def m_dairy_avail_init(m_, i):
         return feedstock_by_type_df["Dairy Manure"].tolist()[i-1]
-    
-    # def m_broiler_avail_init(m_, i):
-    #     return feedstock_by_type_df["Broiler Manure"].tolist()[i-1]
-    
-    # def m_pigs_avail_init(m_, i):
-    #     return feedstock_by_type_df["Pigs Manure"].tolist()[i-1]
+
+    # Manure potential energy production (GJ/tonne)
+    def m_en_pot_init(m_, i):
+        return feedstock_df['M_pot_out_plant'].tolist()[i-1]
 
     # Distance between cells (origin-destination pairs)
     def dist_od_init(m_, i, j):
@@ -92,9 +91,8 @@ def create_model(
     
     m.M_beef_available = Param(m.O, initialize=m_beef_avail_init)
     m.M_dairy_available = Param(m.O, initialize=m_dairy_avail_init)
-    # m.M_broiler_available = Param(m.O, initialize=m_broiler_avail_init)
-    # m.M_pigs_available = Param(m.O, initialize=m_pigs_avail_init)
     m.Distance_OD = Param(m.O, m.D, initialize=dist_od_init)
+    m.M_pot_out_plant = Param(m.O, initialize = m_en_pot_init) 
 
     #FILTER OD PAIRS  - Eliminating unfeasible pairs to reduce model requirement
     feas_M_pairs = []
@@ -116,33 +114,33 @@ def create_model(
     # Declare decision variables
     m.M_beef_moved   = Var(m.FEAS_M, within=NonNegativeReals)
     m.M_diary_moved   = Var(m.FEAS_M, within=NonNegativeReals)
-    # m.M_pigs_moved   = Var(m.FEAS_M, within=NonNegativeReals)
-    # m.M_broiler_moved   = Var(m.FEAS_M, within=NonNegativeReals)
     m.Alpha     = Var(m.D, within=Binary)
     m.Emissions  = Var()
     m.Num_AD_plants = Var(domain=NonNegativeReals)
     
     # Define model constraints
     def emission_eq_rule(m_):
-        # transport emissions
+        # Transport emissions
         transport_emissions = sum(
-            # (m_.M_beef_moved[i, j] + m_.M_diary_moved[i, j] + \
-            #  m_.M_broiler_moved[i, j] + m_.M_pigs_moved[i, j]) / \
             (m_.M_beef_moved[i, j] + m_.M_diary_moved[i, j]) / \
             config.Manure_truck_capacity * m_.Distance_OD[i, j]
             for (i, j) in m_.FEAS_M
-        ) * config.Transport_EF / 1000 # convert to kg
+        ) * config.Transport_EF / 1000 # convert g to kg
+
+        # Upgrading emissions
+        energy_m = sum(10.7*((m_.M_beef_moved[i, j] + m_.M_diary_moved[i, j]) * \
+                             m_.M_pot_out_plant[i]) for (i,j) in m_.FEAS_M)
+        upgrading_emissions = energy_m * config.Upgrade_biogas_EF * \
+            config.Upgrading_efficiency * 0.947817 * 0.453592 # convert lb to kg
 
         # Leftover manure management emissions
         leftover_emissions = sum(
             (m_.M_beef_available[i] - sum(m_.M_beef_moved[i, j] for j in m_.D if (i, j) in m_.FEAS_M)) * config.Beef_EF + \
             (m_.M_dairy_available[i] - sum(m_.M_diary_moved[i, j] for j in m_.D if (i, j) in m_.FEAS_M)) * config.Dairy_EF
-            # (m_.M_broiler_available[i] - sum(m_.M_broiler_moved[i, j] for j in m_.D if (i, j) in m_.FEAS_M)) * config.Broiler_EF + \
-            # (m_.M_pigs_available[i] - sum(m_.M_pigs_moved[i, j] for j in m_.D for (i, j) in m_.FEAS_M)) * config.Pigs_EF
             for i in m_.O
         )
 
-        return m_.Emissions == transport_emissions + leftover_emissions
+        return m_.Emissions == transport_emissions + upgrading_emissions + leftover_emissions
 
     # Feedstock constraints
     def m_beef_supply_rule(m_, i):
@@ -156,32 +154,15 @@ def create_model(
         if not feasible_Ds:
             return Constraint.Skip
         return sum(m_.M_diary_moved[i, j] for j in feasible_Ds) <= m_.M_dairy_available[i]
-    
-    # def m_broiler_supply_rule(m_, i):
-    #     feasible_Ds = [j for (ii, j) in m_.FEAS_M if ii==i]
-    #     if not feasible_Ds:
-    #         return Constraint.Skip
-    #     return sum(m_.M_broiler_moved[i, j] for j in feasible_Ds) <= m_.M_broiler_available[i]
-    
-    # def m_pigs_supply_rule(m_, i):
-    #     feasible_Ds = [j for (ii, j) in m_.FEAS_M if ii==i]
-    #     if not feasible_Ds:
-    #         return Constraint.Skip
-    #     return sum(m_.M_pigs_moved[i, j] for j in feasible_Ds) <= m_.M_pigs_available[i]
-
 
     # AD capacity constraints
     def min_capacity_rule(m_, j):
-        # m_in = sum(m_.M_beef_moved[i, j] + m_.M_diary_moved[i, j] + m_.M_broiler_moved[i, j] + m_.M_pigs_moved[i, j]
-        #            for (i,jj) in m_.FEAS_M if jj==j)
         m_in = sum(m_.M_beef_moved[i, j] + m_.M_diary_moved[i, j]
                    for (i,jj) in m_.FEAS_M if jj==j)
     
         return m_in >= m_.Alpha[j] * config.Min_Capacity
 
     def max_capacity_rule(m_, j):
-        # m_in = sum(m_.M_beef_moved[i, j] + m_.M_diary_moved[i, j] + m_.M_broiler_moved[i, j] + m_.M_pigs_moved[i, j]
-        #            for (i,jj) in m_.FEAS_M if jj==j)
         m_in = sum(m_.M_beef_moved[i, j] + m_.M_diary_moved[i, j]
                    for (i,jj) in m_.FEAS_M if jj==j)
 
@@ -191,22 +172,22 @@ def create_model(
     def num_ad_plants_rule(m_, j):
         return m_.Num_AD_plants == sum(m_.Alpha[j] for j in m_.D)
 
-    def min_ad_plants_rule(m_):
-        Max_num_plants = 50
-        return m_.Num_AD_plants >= Max_num_plants
+    def min_emissions_rule(m_):
+        Min_Emissions = 108490.9643
+        return m_.Emissions <= m_.f * Min_Emissions
 
     m.ManureBeefSupply = Constraint(m.O, rule = m_beef_supply_rule)
     m.ManureDairySupply = Constraint(m.O, rule = m_dairy_supply_rule)
-    # m.ManureBroilerSupply = Constraint(m.O, rule = m_broiler_supply_rule)
-    # m.ManurePigsSupply = Constraint(m.O, rule = m_pigs_supply_rule)
     m.MinCapacity = Constraint(m.D, rule=min_capacity_rule)
     m.MaxCapacity = Constraint(m.D, rule=max_capacity_rule)
-    m.NumADPlantsDefinition = Constraint(rule=num_ad_plants_rule)
-    m.MinADPlants = Constraint(rule=min_ad_plants_rule)
+    m.MinEmissions = Constraint(rule=min_emissions_rule)
 
     # Declare objective function
+    m.NumADPlantsDefinition = Constraint(rule=num_ad_plants_rule)
+    m.Obj = Objective(expr=m.Num_AD_plants, sense=minimize)
+    
     m.EmissionDefinition = Constraint(rule=emission_eq_rule)
-    m.Obj = Objective(expr=m.Emissions, sense=minimize)
+    # m.Obj = Objective(expr=m.Emissions, sense=minimize)
 
     return m
 
