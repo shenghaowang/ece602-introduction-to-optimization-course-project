@@ -17,7 +17,7 @@ class Config:
     MCE: float = 0.85   #methane capture efficiency from the digestor [-] (aka eta, small)
     Amt_financed: float = 0.75  #portion of capital cost financed? fraction [-]
     C_pipe: int = 1208194   #$/km capital cost for building connecting pipelines from the digestor
-    f: float = 1.0  #Energy constraint; set f=1 as default
+    f: float = 3.0  # Energy / Emissions constraint; set f=1 as default
     PV_FP_coeff: float = 10.7   #coefficient derived from a formula used to calculate the present value of future payments
     FW_energy: float = 2.122875 #GJ/tonne of food waste (energy content) (aka s)
     FW_transport_cost: float = 1.09869  # $/km cost of transporting foodwaste
@@ -32,9 +32,10 @@ class Config:
     Pigs_EF: float = 0.0001 # kg N2O per tonne of manure
     Broiler_EF: float = 1.3  # kg N2O per tonne of manure
     Transport_EF: float = 0.002  # g/km per tonne of manure
-    Upgrade_biogas_EF: float = 0.00009979024  # kg N2O per kg of biogas (kg/MMBtu)
+    Upgrade_biogas_EF: float = 0.00022  # lb / MMBtu
     Manure_truck_capacity: float = 22.7  # tonnes
     FW_truck_capacity: float = 20.0  # tonnes
+    Upgrading_efficiency: float = 0.85  # fraction of biogas that is upgraded
 
 
 @dataclass
