@@ -9,7 +9,6 @@ from pyomo.environ import (
     ConcreteModel,
     Constraint,
     minimize,
-    # NonNegativeIntegers,
     NonNegativeReals,
     Objective,
     Param,
@@ -203,7 +202,7 @@ def solve_and_output(model, out_file="part2_solution.xlsx"):
 
     results = solver.solve(model, tee=True)
 
-    #Need to check if solver "worked"
+    # Need to check if solver "worked"
     logger.info(f"Solver Status: {results.solver.status}")
     logger.info(f"Termination Condition: {results.solver.termination_condition}")
 
@@ -224,12 +223,8 @@ def solve_and_output(model, out_file="part2_solution.xlsx"):
             model.D_labels[j-1],
             value(model.M_beef_moved[i, j]),
             value(model.M_diary_moved[i, j]),
-            # value(model.M_broiler_moved[i, j]),
-            # value(model.M_pigs_moved[i, j])
         ) for (i, j) in model.FEAS_M if value(model.M_beef_moved[i, j]) + \
             value(model.M_diary_moved[i, j]) > 0
-            # value(model.M_broiler_moved[i, j]) + \
-            # value(model.M_pigs_moved[i, j]) > 0
         ]
 
         ad_solution = [
@@ -245,8 +240,6 @@ def solve_and_output(model, out_file="part2_solution.xlsx"):
         with pd.ExcelWriter(out_file, engine='openpyxl') as writer:
             df_manure = pd.DataFrame(
                 data=manure_solution,
-                # columns=['Origin','Destination','Manure_moved_beef', 'Manure_moved_dairy',
-                # 'Manure_moved_broiler', 'Manure_moved_pigs']
                 columns=['Origin','Destination','Manure_moved_beef', 'Manure_moved_dairy']
             )
             df_manure.to_excel(writer, sheet_name='ManureTransfers', index=False)
