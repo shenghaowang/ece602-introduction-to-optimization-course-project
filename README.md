@@ -37,6 +37,18 @@ pip install -r requirements.txt
 
 ---
 
+## 🧠 Project Structure
+
+├── report/              # Latex file for the project report
+├── part1.py             # Part 1 solution script
+├── part2_manure.py      # Part 2 solution script
+├── preprocess.py        # Preprocess xlsx into parquet data files
+├── config.py            # Parameters used for defining the optimization problems
+├── requirements.txt
+└── README.md
+
+---
+
 ## Usage
 
 ### Part 1: Energy Production & Cost Optimization
