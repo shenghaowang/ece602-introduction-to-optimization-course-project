@@ -39,6 +39,7 @@ pip install -r requirements.txt
 
 ## 🧠 Project Structure
 
+```
 ├── report/              # Latex file for the project report
 ├── part1.py             # Part 1 solution script
 ├── part2_manure.py      # Part 2 solution script
@@ -46,6 +47,7 @@ pip install -r requirements.txt
 ├── config.py            # Parameters used for defining the optimization problems
 ├── requirements.txt
 └── README.md
+```
 
 ---
 
