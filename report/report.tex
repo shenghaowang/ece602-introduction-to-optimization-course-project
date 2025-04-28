@@ -25,7 +25,42 @@
 
 \begin{document}
 
-\maketitle
+
+% Title Page
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  
+  {\LARGE\bfseries ECE 602: Introduction to Optimization Project Report \par}
+  \vspace{0.5cm}
+  {\Large\bfseries Multi-Objective Optimization for Cost-Efficient Management of Manure and Food Waste \par}
+  \vspace{2cm}
+  
+  {\large\bfseries Team Members\par}
+  \vspace{0.5cm}
+  \begin{tabular}{ll}
+  Anna Wheeler & 20830311 \\
+  Shenghao Wang & 21171330 \\
+
+  % Add more members if needed
+  \end{tabular}
+  
+  \vspace{2cm}
+  
+  {\large\bfseries Assigned Paper Citation\par}
+  \vspace{0.5cm}
+  \begin{minipage}{0.8\textwidth}
+  \centering
+  Mukherjee, U., Tolson, B., Granito, C., Basu, N., Moreno, J., Saari, R., Bindas, S. (2025). A Landscape approach to Waste Management at the Food-Water-Energy Nexus: Spatial optimization Modelling for Biodigester Locations [Manuscript in preparation].
+  \end{minipage}
+  
+  \vfill
+  
+  {\large Date of Submission: \par}
+  \vspace{0.5cm}
+  {\large April 28, 2025\par}
+  
+\end{titlepage}
 
 \section*{Abstract}
 This project reproduces a study investigating the spatial distribution of renewable natural gas (RNG) plants under different adaptation scenarios in Ontario, Canada. Specifically, we reconstructed the original optimization model, which explored the trade-off between maximizing renewable energy production and minimizing total system cost, using the $\varepsilon$-constraint method as proposed in the original research. The reproduced model achieved a maximum energy production of approximately 29.2 million GJ per year, a total system cost of \$46 billion CAD, and identified 295 optimal digester locations out of 3,996 potential sites modeled using a 5 km $\times$ 5 km grid. These results closely align with those reported in the original study. Additionally, using Gurobi as the solver, we generated an approximate Pareto efficient space and analyzed the impact of varying energy production thresholds on infrastructure planning and environmental outcomes.
