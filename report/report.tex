@@ -74,7 +74,7 @@ The selected study investigates the spatial distribution of anaerobic digesters 
 
 The study comprises three key components: (1) the acquisition and development of spatial datasets with a 5 × 5 km grid resolution for assessing the availability of manure and food waste; (2) the development of an optimization model; and (3) a post-hoc analysis of greenhouse gas emissions under various adaptation scenarios. This report focuses on the optimization model. (Mukherjee, 2025) 
 
-With the objective of maximizing energy production, an optimal output of 29 million GJ per year, with AD capacity set between 30 and 120 kilotonnes (kt) of waste per year (per plant). This energy-maximized system was estimated to cost \$34 billion CAD, assuming a 20-year project life. “Strategically minimizing cost” estimated a cost of \$13 billion CAD to achieve about the same energy production (62% cost reduction). (Mukherjee, 2025) 
+With the objective of maximizing energy production, the optimal output is 29 million GJ per year, with AD capacity set between 30 and 120 kilotonnes (kt) of waste per year (per plant). This energy-maximized system was estimated to cost \$34 billion CAD, assuming a 20-year project life. “Strategically minimizing cost” estimated a cost of \$13 billion CAD to achieve about the same energy production (62% cost reduction). (Mukherjee, 2025) 
 
 For this project we obtained permission to read the unpublished paper. We were granted access to the spatial datasets and provided with the parameter values and factors used in the formulation of the objective functions and constraints. The drafted paper may be provided to the instructor for the sole purpose of assessing this project. This project may not be distributed or made public.
 
@@ -228,13 +228,13 @@ While further restricting the problem degrades the solution, the tradeoff betwee
 \subsection{Results and Comparison}
 
 \subsubsection{Key Results}
-The study estimated maximized energy at 29 million GJ per year maximum, with a total cost of 34 billion CAD. Minimized for cost, it became 13 billion CAD - about a 60% cost reduction. 
+The study estimated maximized energy at 29 million GJ per year maximum, with a total cost of 34 billion CAD. Minimized for cost, it became 13 billion CAD - about a 60\% cost reduction. 
 
 Without the OD filter, the recreation maximum energy was found to be nearly 29.2 million GJ per year, with a total system cost of \$46 billion CAD, comprising 295 plants. Conversely, with the OD filter, 29.1 million GJ per year was estimated at a total cost of \$23.2 billion CAD and comprising 814 plants. Using 97.5\% of the maximum energy to approximate the cost-minimized 100\% run, we obtained a total cost estimate of nearly \$12.3 billion CAD comprising 323 plants. The minimized cost versions of the near-maximum energy are very similar.
 
 Note that significantly more plants were required with the OD filter, as the feedstock availability is fragmented by the eliminated OD pairs due to distance. This difference is most significant for the maximum energy, and generally reduces as the percent of maximum energy required decreases (see Table 1).
 
-\begin{table}[h]
+\begin{table}[H]
   \centering
   \begin{tabular}{|p{4cm} | p{5cm} | p{5cm}|}
   \hline
@@ -251,7 +251,7 @@ Note that significantly more plants were required with the OD filter, as the fee
 
 \subsubsection{Pareto Efficient Space}
 
-To generate the Pareto Efficient Space, we experimented with different f values, including 5\%, 25\%, 50\%, 75\%, and 97.5\%. In the original study, the author used 25\%, 50\%, 75\%, and 100\%. We chose to replace the 100\% case with 97.5\%, as the scenario with $f = 100\%$ could not be solved under the filtering criteria we introduced for the OD pairs. We compared the resulting Pareto curves by overlaying both versions on a single chart. From Figur 1, it can be observed that the optimized energy production and cost are quite similar for the same $f$ values.
+To generate the Pareto Efficient Space, we experimented with different f values, including 5\%, 25\%, 50\%, 75\%, and 97.5\%. In the original study, the author used 25\%, 50\%, 75\%, and 100\%. We chose to replace the 100\% case with 97.5\%, as the scenario with $f = 100\%$ could not be solved under the filtering criteria we introduced for the OD pairs. We compared the resulting Pareto curves by overlaying both versions on a single chart. From Figure 1, it can be observed that the optimized energy production and cost are quite similar for the same $f$ values.
 
 \begin{figure}[H]
   \centering
@@ -327,7 +327,7 @@ The implementation details for the objective and constraint functions are covere
 
 \textbf{Primary objective: N\textsubscript{2}O emissions estimation}
 
-Based on the emissions component assumption, the total N\textsubscript{2}O emissions are composed of transportation emissions, upgrading emissions, and leftover manure management emissions. Transportation emissions were estimated by evaluating all feasible origin–destination (OD) cell pairs. For each OD pair, we calculated the total distance required to transport the optimized mass of beef and dairy cattle manure from the origin to the destination. Multiplying this total distance by the N\textsubscript{2}O emission factor yields the transportation emissions. The detailed formulation is provided below (Equation 1).
+Based on the emissions component assumption, the total N\textsubscript{2}O emissions are composed of transportation emissions, upgrading emissions, and leftover manure management emissions. Transportation emissions were estimated by evaluating all feasible origin–destination (OD) cell pairs. For each OD pair, we calculated the total distance required to transport the optimized mass of beef and dairy cattle manure from the origin to the destination. Multiplying this total distance by the N\textsubscript{2}O emission factor yields the transportation emissions. The detailed formulation is provided below (Equation 10).
 
 \begin{equation}
   E_{TRAN} = \sum_{\text{(o, d)}}\frac{(m_{b, (o, d)} + m_{d, (o, d)}) \times VKT_{(o, d)}}{\gamma} \times EF_{TRAN}
@@ -355,7 +355,7 @@ where:
   \item $\eta_{UG}$: Efficiency of upgrading process (0.85)
 \end{itemize}
 
-Additionally, manure that is not processed by AD plants continues to emit N\textsubscript{2}O. These emissions are calculated by multiplying the mass of the leftover manure by the baseline emissions factor, as shown in Equation 3.
+Additionally, manure that is not processed by AD plants continues to emit N\textsubscript{2}O. These emissions are calculated by multiplying the mass of the leftover manure by the baseline emissions factor, as shown in Equation 12.
 
 \begin{equation}
   E_{LEFT} = \sum_o\biggl((m_{b,o} - \sum_d m_{b, (o, d)}) \times EF_{b} + (m_{d,o} - \sum_d m_{d, (o, d)}) \times EF_d \biggr)
@@ -372,7 +372,7 @@ where:
 \vspace{10pt}
 \textbf{Secondary objective: Number of AD plants}
 
-The number of AD plants is defined as the number of destination cells that receive a positive mass of livestock manure transported from other locations, as formulated in Equation 4.
+The number of AD plants is defined as the number of destination cells that receive a positive mass of livestock manure transported from other locations, as formulated in Equation 13.
 
 \begin{equation}
   N_{AD} = \sum_d \mathbb{I}(m_{b, (o, d)} + m_{d, (o, d)} > 0)
@@ -388,7 +388,7 @@ where:
 \vspace{10pt}
 \textbf{Manure supply constraint}
 
-For each origin cell, the total mass of manure transported to destination cells must not exceed the initial manure supply available at that location, as described in Equation 5.
+For each origin cell, the total mass of manure transported to destination cells must not exceed the initial manure supply available at that location, as described in Equation 14.
 
 \begin{equation}
   \sum_d (m_{b, (o, d)} + m_{d, (o, d)}) \leq m_{b,o} + m_{d,o}
@@ -404,7 +404,7 @@ where:
 \vspace{10pt}
 \textbf{Digester capacity constraint}
 
-For each destination cell with an AD plant, the total mass of feedstock processed must fall within the allowable operating range of the digester’s capacity, as defined in Equation 6.
+For each destination cell with an AD plant, the total mass of feedstock processed must fall within the allowable operating range of the digester’s capacity, as defined in Equation 15.
 \begin{equation}
   S_{MIN} \leq \sum_o (m_{b, (o, d)} + m_{d, (o, d)}) \leq S_{MAX}
 \end{equation}
@@ -421,7 +421,7 @@ where:
 To apply the $\varepsilon$-constraint method, we first ignored the secondary objective and focused solely on minimizing N\textsubscript{2}O emissions. Solving the model using the Gurobi solver yielded a global minimum N\textsubscript{2}O emission of 108,438.0874 kg.
 
 To address the secondary objective of minimizing the number of AD plants, we incorporated the minimized N\textsubscript{2}O emissions as an additional constraint. Specifically, we introduced a factor 
-$f$, representing a multiple of the minimized emissions, to define the minimum allowable emissions threshold, as shown in Equation 7.
+$f$, representing a multiple of the minimized emissions, to define the minimum allowable emissions threshold, as shown in Equation 16.
 \begin{equation}
   E_{TRAN} + E_{UG} + E_{LEFT} \leq f \times 108438.0874
 \end{equation}
