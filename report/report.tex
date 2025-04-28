@@ -10,6 +10,9 @@
 \usepackage{titlesec}
 \usepackage[table]{xcolor}
 \usepackage{parskip}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{hyperref}
 
 % Formatting
 \titleformat{\section}{\normalfont\Large\bfseries}{\thesection.}{1em}{}
@@ -25,23 +28,227 @@
 \maketitle
 
 \section*{Abstract}
-A brief summary of the objectives, methods, and main findings of the project. (150--200 words)
+This project reproduces a study investigating the spatial distribution of renewable natural gas (RNG) plants under different adaptation scenarios in Ontario, Canada. Specifically, we reconstructed the original optimization model, which explored the trade-off between maximizing renewable energy production and minimizing total system cost, using the $\varepsilon$-constraint method as proposed in the original research. The reproduced model achieved a maximum energy production of approximately 29.2 million GJ per year, a total system cost of \$46 billion CAD, and identified 295 optimal digester locations out of 3,996 potential sites modeled using a 5 km $\times$ 5 km grid. These results closely align with those reported in the original study. Additionally, using Gurobi as the solver, we generated an approximate Pareto efficient space and analyzed the impact of varying energy production thresholds on infrastructure planning and environmental outcomes.
+
+In Part 2 of the project, we extended the work by Bindas (2024) to approach the problem from a different perspective. We modeled the trade-off between minimizing greenhouse gas (GHG) emissions and minimizing the number of anaerobic digestion (AD) plants across Ontario. Our model achieved a minimized N\textsubscript{2}O emission of approximately 108,438 kg per year, with 200 AD plants required to meet this target. Together, the two parts of the project demonstrate the flexibility of the $\varepsilon$-constraint method in addressing different sustainability trade-offs through multi-objective optimization frameworks.
+
 
 \section{Introduction}
-Provide background on the optimization method, summarize the assigned paper, and outline the objectives of your project.
+Anaerobic digestion (AD) presents an opportunity to manage livestock manure and food waste while producing renewable natural gas (RNG). In addition to producing valuable RNG, it serves to supplement the supply of NG while managing waste, ultimately reducing GHG emissions. 
+The selected study investigates the spatial distribution of anaerobic digesters (renewable natural gas plants) under different scenarios of adaptation in Ontario, Canada. They developed a “techno-economic” optimization model to analyze the efficient space of balancing the opposing objectives of minimizing total system cost and maximizing renewable energy production. (Mukherjee, 2025) 
+
+The study comprises three key components: (1) the acquisition and development of spatial datasets with a 5 × 5 km grid resolution for assessing the availability of manure and food waste; (2) the development of an optimization model; and (3) a post-hoc analysis of greenhouse gas emissions under various adaptation scenarios. This report focuses on the optimization model. (Mukherjee, 2025) 
+
+With the objective of maximizing energy production, an optimal output of 29 million GJ per year, with AD capacity set between 30 and 120 kilotonnes (kt) of waste per year (per plant). This energy-maximized system was estimated to cost \$34 billion CAD, assuming a 20-year project life. “Strategically minimizing cost” estimated a cost of \$13 billion CAD to achieve about the same energy production (62% cost reduction). (Mukherjee, 2025) 
+
+For this project we obtained permission to read the unpublished paper. We were granted access to the spatial datasets and provided with the parameter values and factors used in the formulation of the objective functions and constraints. The drafted paper may be provided to the instructor for the sole purpose of assessing this project. This project may not be distributed or made public.
+
+The first objective of this project is to reproduce the optimization carried out in the study. The second objective is to repurpose the solution to solve a different problem. 
+
 
 \section{Reproducible Research (Part 1)}
 \subsection{Method Overview}
-Describe the optimization algorithm used in the assigned paper.
+The problem addressed by the study involves binary decision variables: whether or not an AD is placed on a grid cell (3996 total; one for each cell). Millions of continuous variables describe the feedstock capacities of AD, and the distances, types, and amounts of feedstock moved between grid cells. The optimization was encoded and solved using IBM ILOG CPLEX Optimization Studio (Version 22.1.1) (Mukherjee, 2025).
+
+The optimization problem is  one of multi-objective mathematical programming (MOMP) (Mavrotas, 2009). It is a mixed-integer problem, as one of the decision variables is a binary, while the others are non-negative real numbers. Due to the multiple objectives, there is no singular optimal solution. Instead, a Pareto optimal set exists (Mavrotas, 2009). System cost increases as the potential energy production of said system increases. This means that improvement to one of the two objectives results in degradation in the other. 
+
+In the study, an “a-posteriori” method was chosen, in which multiple efficient solutions were produced to “sufficiently” represent the Pareto optimal set. The a-posteriori method employed was the $\varepsilon$-constraint method. For this, the system is optimized for one objective function, using the others as constraints (Mavrotas, 2009).
+
+An alternative a-posteriori method would be to assign relative importance to the multiple objectives, producing an objective equation composed of multiple weighted objectives. While this approach is less computationally expensive, the $\varepsilon$-constraint method offers a better representation of the efficient set. Further, the $\varepsilon$-constraint does not require scaling the objective functions, which can significantly impact the solution (Mavrotas, 2009).
 
 \subsection{Implementation Details}
-Detail your implementation approach, tools, and any assumptions.
+We elected to use the $\varepsilon$-constraint method in the same manner as the study. With the goal of reproducing the study's results, energy was selected as the primary objective for the initial run to identify the maximum potential of the system. This energy, multiplied by factor f, was then used as a constraint, with f representing a fraction of the optimal energy to serve as a minimum requirement. Values 0.25, 0.5, and 0.75 were used for f to mirror the Pareto set presented in the study. Discussed later, we used 0.975 to approximate the 1.00 f-value run for the study's cost minimization. 
+ 
+The problem was originally solved with CPLEX (v22.1.1). Due to recent licensing changes between Oracle and the University, this is no longer a feasible choice. Instead, Pyomo was employed to interface between Python and the solver Gurobi. Gurobi, a commercial solver, offers a free academic license and is capable of linear, mixed-integer, and quadratic programming, and more advanced problems such as quadratically-constrained.
+
+\subsubsection{Objective and Constraint Equations}
+
+The following set of equations employed in the original study were utilized in the recreation.
+
+\vspace{10pt}
+\textbf{Primary objective: Energy Production}
+
+The primary objective is to maximize energy production as renewable natural gas (GJ). For each (destination) cell chosen as an AD site, mass of manure and food waste are multiplied by their methane content per mass. The resulting methane per (destination) cell is multiplied by the energy content of methane (GJ per $m^3$) and then summed over the entire system (Equation 1).
+
+\begin{equation}
+  E_{gen} = T \cdot \eta \cdot H \cdot \sum_{i}\sum_{j}(m_{m, (i, j)} \cdot g_i + m_{f, (i, j)} \cdot s)
+\end{equation}
+
+where:
+\begin{itemize}
+  \item $E_{gen}$: Total energy produced (GJ)
+  \item $T$: Project lifetime (years)
+  \item $\eta$: Methane capture efficiency of the plant
+  \item $H$: Energy content of methane (GJ per $m^3$)
+  \item $m_{m, (i, j)}$: Mass of manure transported from cell $i$ to cell $j$ (tonnes)
+  \item $g_i$: Methane production factor of manure mix in cell $i$ (m\textsuperscript{3} CH\textsubscript{4} / tonne manure)
+  \item $m_{f, (i, j)}$: Mass of food waste transported from cell $i$ to cell $j$ (tonnes)
+  \item $s$: Methane production factor of food waste (m\textsuperscript{3} CH\textsubscript{4} / tonne food waste)
+\end{itemize}
+
+\vspace{10pt}
+\textbf{Primary constraints}
+
+Firstly, the total mass of feedstock (manure or food waste) transported from cell $i$ to other cells ($j$) must not exceed the feedstock available in cell $i$ to begin with. This constraint is represented as two inequality constraints, as follows.
+
+\begin{equation}
+  \sum_{j} m_{m, (i,j)} \leq m_{m, i} \ , \forall i
+\end{equation}
+\begin{equation}
+  \sum_{j} m_{f, (i,j)} \leq m_{f, i} \ , \forall i
+\end{equation}
+where:
+\begin{itemize}
+  \item $m_{m, (i,j)}$: Mass of manure transported from cell $i$ to cell $j$ (tonnes)
+  \item $m_{f, (i,j)}$: Mass of food waste transported from cell $i$ to cell $j$ (tonnes)
+  \item $m_{m, i}$: Mass of manure available at cell $i$ (tonnes)
+  \item $m_{f, i}$: Mass of food waste available at cell $i$ (tonnes)
+\end{itemize}
+
+Secondly, the total mass of feedstock transported to cell $j$ from other cells ($i$) must stay between the minimum ($S_{MIN}$) and maximum ($S_{MAX}$) annual feedstock handling capacity for AD plants, set as 30,000 and 120,000 kilotonnes of feedstock per year, respectively, for the study of interest. This constraint is represented as the following inequality.
+
+\begin{equation}
+  S_{MIN} \cdot \alpha_j \leq \sum_{i} (m_{m, (i,j)} + m_{f, (i,j)}) \leq S_{MAX} \cdot \alpha_j \ , \forall j
+\end{equation}
+
+\textbf{Secondary objective: System Cost}
+
+The secondary objective is to minimise the "present value" of the system cost in 2022 CAD, which is comprised of the following three components.
+
+\begin{equation}
+  C_{SYS} = C_{AD} + C_{PIP} + C_{TRAN}
+\end{equation}
+
+The fixed and capacity-dependent components of AD capital cost are computed by taking the feedstock masses multiplied by their respective cost-per-tonne for the AD capital cost. These are summed over all cells and multiplied by factors for the financed portion, the unfinanced portion, and the associated operational cost for the AD plants (Equation 6).
+
+\begin{equation}
+  C_{AD} = \biggl\{\sum_{i}\sum_{j} \bigl( \beta \cdot m_{m, (i,j)} + \theta \cdot m_{f, (i,j)} \bigr)\biggr\} \times \{(1 - \tau) + \tau \cdot \mu \cdot \lambda + \omega \cdot \lambda\}
+\end{equation}
+where:
+\begin{itemize}
+  \item $C_{AD}$: Total capital cost of AD plants (CAD)
+  \item $\beta$: Capacity-dependent unit cost for manure (\$/tonne of manure)
+  \item $\theta$: Capacity-dependent unit cost for food waste (\$/tonne of food waste)
+  \item $m_{m, (i,j)}$: Mass of manure transported from cell $i$ to cell $j$ (tonnes)
+  \item $m_{f, (i,j)}$: Mass of food waste transported from cell $i$ to cell $j$ (tonnes)
+  \item $\tau$: Fraction of total capital cost financed as debt
+  \item $\mu$: Amortization factor
+  \item $\lambda$: Project life nominal cash flow factor
+  \item $\omega$: Operational cost factor
+\end{itemize}
+
+The second term represents pipeline construction costs, multiplied by factors for the financed and unfinanced portions (Equation 7).
+
+\begin{equation}
+  C_{PIP} = \biggl\{\sum_{j} \bigl( \phi \cdot d_{pl} \cdot \alpha_j \bigr)\biggr\} \times \{(1 - \tau) + \tau \cdot \mu \cdot \lambda\}
+\end{equation}
+
+where:
+\begin{itemize}
+  \item $C_{PIP}$: Total pipeline construction cost (CAD)
+  \item $\phi$: Unit cost of pipeline construction (\$/km)
+  \item $d_{pl}$: Distance(km) of site cell j to existing pipeline infrastructure
+  \item $\alpha_j$: Binary decision variable indicating whether an AD plant is located at cell $j$
+  \item $\tau$: Fraction of total capital cost financed as debt
+  \item $\mu$: Amortization factor
+  \item $\lambda$: Project life nominal cash flow factor
+\end{itemize}
+
+The third term represents transportation costs, which are operational and therefore cannot be partially financed (Equation 8).
+
+\begin{equation}
+  C_{TRAN} = \sum_{i}\sum_{j} \bigl(m_{m, (i,j)} \cdot (d_{r, (i, j)} \cdot \delta + \varepsilon) + m_{f, (i, j)} \cdot \varphi \cdot d_{r, (i,j)}\bigr)
+\end{equation}
+
+where:
+\begin{itemize}
+  \item $C_{TRAN}$: Total transportation cost (CAD)
+  \item $m_{m, (i,j)}$: Mass of manure transported from cell $i$ to cell $j$ (tonnes)
+  \item $d_{r, (i,j)}$: Actual road distance (km) between origin cell $i$ to destination cell $j$
+  \item $\delta$: Cost of transportation per km per tonne of manure (\$/km/tonne)
+  \item $\varepsilon$: Unloading cost parameter (\$/tonne) for manure
+  \item $m_{f, (i,j)}$: Mass of food waste transported from cell $i$ to cell $j$ (tonnes)
+  \item $\varphi$: Cost of transportation per km per tonne of food waste (\$/km/tonne)
+\end{itemize}
+
+\vspace{10pt}
+\textbf{Secondary constraint}
+
+In addition to the primary constraints, the energy objective is included as a constraint based on a portion of the previously determined maximum energy potential.
+
+\begin{equation}
+  E_{gen} = T \cdot \eta \cdot H \cdot \sum_{i}\sum_{j}(m_{m, (i, j)} \cdot g_i + m_{f, (i, j)} \cdot s) \geq f \cdot E_{max} 
+\end{equation}
+
+Where $f$ represents a fraction of the maximum energy to serve as the minimum energy requirement for the cost-optimized runs.
+
+\subsubsection{Simplifications}
+This problem was computationally expensive. Maximizing energy production required more than 5 hours to solve without simplifications. To reduce the computation requirement for running multiple cost optimizations, a restriction was introduced.
+
+OD pairs were restricted to reduce computational cost, as there otherwise would be nearly 16 million origin-destination cell pairs (3996 $\times$ 3996) to consider. Firstly, origin cells that do not contain manure or food waste are excluded because there is nothing to transport to a destination. Secondly, an arbitrary RNG sale price is used to calculate a “break-even” distance, beyond which the cells would be too far apart to justify transporting the feedstock between the pair. 
+
+While further restricting the problem degrades the solution, the tradeoff between expense and accuracy of the solution was tested and considered acceptable for this project. With the aforementioned simplification, the cost-minimization for 100\% or 99\% of the maximum energy was unable to be solved. Instead, 97.5\% was used as a solvable close approximation to the 100\% cost-min run in the original study. 
+
 
 \subsection{Results and Comparison}
-Present and compare your results with those in the original paper. Use figures/tables as needed.
+
+\subsubsection{Key Results}
+The study estimated maximized energy at 29 million GJ per year maximum, with a total cost of 34 billion CAD. Minimized for cost, it became 13 billion CAD - about a 60% cost reduction. 
+
+Without the OD filter, the recreation maximum energy was found to be nearly 29.2 million GJ per year, with a total system cost of \$46 billion CAD, comprising 295 plants. Conversely, with the OD filter, 29.1 million GJ per year was estimated at a total cost of \$23.2 billion CAD and comprising 814 plants. Using 97.5\% of the maximum energy to approximate the cost-minimized 100\% run, we obtained a total cost estimate of nearly \$12.3 billion CAD comprising 323 plants. The minimized cost versions of the near-maximum energy are very similar.
+
+Note that significantly more plants were required with the OD filter, as the feedstock availability is fragmented by the eliminated OD pairs due to distance. This difference is most significant for the maximum energy, and generally reduces as the percent of maximum energy required decreases (see Table 1).
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{|p{4cm} | p{5cm} | p{5cm}|}
+  \hline
+  \rowcolor{gray!30}
+  \% Maximum Energy & Original Study (AD count) & Recreation (AD count) \\ \hline
+  100\% / 97.5\% & 295 & 323 \\ \hline
+  75\% & 182 & 196 \\ \hline
+  50\% & 96 & 101 \\ \hline
+  25\% & 49 & 57 \\ \hline
+  \end{tabular}
+  \caption{Comparison of AD counts from the original and recreated studies under different percentage of maximum energy}
+  \label{tab:adplants_energy}
+\end{table}
+
+\subsubsection{Pareto Efficient Space}
+
+To generate the Pareto Efficient Space, we experimented with different f values, including 5\%, 25\%, 50\%, 75\%, and 97.5\%. In the original study, the author used 25\%, 50\%, 75\%, and 100\%. We chose to replace the 100\% case with 97.5\%, as the scenario with $f = 100\%$ could not be solved under the filtering criteria we introduced for the OD pairs. We compared the resulting Pareto curves by overlaying both versions on a single chart. From Figur 1, it can be observed that the optimized energy production and cost are quite similar for the same $f$ values.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{Pareto Efficient Space Overlay.png}
+  \caption{Pareto Efficient Space for the original study and the recreation}
+  \label{fig:pareto_curve}
+\end{figure}
 
 \subsection{Analysis and Discussion}
-Discuss discrepancies, difficulties, and insights. Comment on the method's strengths and weaknesses.
+The maximized energy was effectively reproduced, at around 29 million GJ per year. The source of the discrepancy in cost of energy-maximized systems is unclear. When cost is minimized, the recreation nearly converges with the original study in terms of cost, suggesting that overall the cost equations are properly implemented. The large initial discrepancy could be attributed to the difference in solvers, and how they elected to redistribute feedstock across the province. 
+
+More plants were consistently required with the OD filter employed. This can be attributed to the filter “fragmenting” the feedstock supply. This difference is most significant for the maximum energy, and generally reduces as the percent of maximum energy required decreases. This decrease in the discrepancy is expected because with lesser energy requirements, the more “efficient” feedstock is used preferentially, and fewer long-distance transfers of feedstock are necessary. 
+
+To observe the impact of the filter, different RNG prices were used. The RNG price represents an assumed purchase price, excluding any feedstock transfers that would cost more than the purchase price. The OD filter degrades the optimal solution as the assigned RNG price decreases (see Table 2).
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{|p{3cm} | p{3cm} | p{3cm}| p{3cm}| p{3cm}|}
+  \hline
+  \rowcolor{gray!30}
+  RNG price & Cost (\$) & Energy (GJ/year) & AD count & System RNG cost (\$/GJ) \\ \hline
+  200 & 28,303,669,350.15 & 29183949.04 & 607 & 48.49 \\ \hline
+  60 & 23,210,534,626.00 & 29097205.75 & 814 & 39.88 \\ \hline
+  24 & 20,515,390,050.17 & 28463973.44 & 890 & 36.04 \\ \hline
+  10 & 13,158,313,184.36 & 22152236.00 & 582 & 29.70 \\ \hline
+  n/a - no filter & 47,936,647,636.69 & 29186554.47 & 295 & 82.12 \\ \hline
+  \end{tabular}
+  \caption{The impact of the OD filter on the cost and energy production of the system}
+\end{table}
+
+With the RNG price set to \$200/GJ, the solver required significantly more time than with the RNG price set to \$60/GJ. Since \$60/GJ allowed the solver to be reasonably fast and still achieved an optimal energy of just over 29 million GJ/year, this was chosen as the filter price for the cost-minimization runs.
+
 
 \section{Code Recycling and Extension (Part 2)}
 The second objective of this project is to reapply the $\varepsilon$-constraint method to a different multi-objective optimization problem. Specifically, we shift our focus to addressing the issue of greenhouse gas (GHG) emissions in the context of manure management.
@@ -58,7 +265,7 @@ Solving this optimization problem will identify the optimal locations for AD pla
 
 \noindent To ensure the optimization problem remains solvable within our limited computational resources, the following assumptions were made to simplify the model.
 
-\subsubsection*{Emissions Component Assumption}
+\subsubsection{Emissions Component Assumption}
 Based on the study by Bindas (2024), we consider the following three major sources of GHG emissions associated with the construction and operation of AD plants for processing livestock waste:
 \begin{itemize}
   \item Transportation Emissions: GHG emissions generated during the transportation of feedstocks to the AD plants.
@@ -67,10 +274,10 @@ Based on the study by Bindas (2024), we consider the following three major sourc
 \end{itemize}
 It is important to note that emissions from food waste and the emissions offset resulting from the utilization of renewable natural gas were not considered in this analysis.
 
-\subsubsection*{Gridded Geospatial Assumption for Manure Site Distribution}
+\subsubsection{Gridded Geospatial Assumption for Manure Site Distribution}
 Consistent with Part 1, we represent manure sites in Ontario using a 5 km × 5 km geospatial grid. Each of the 3,996 cells is treated as a potential site for biogas plant development.
 
-\subsubsection*{Manure Type Assumption}
+\subsubsection{Manure Type Assumption}
 The original study by Bindas (2024) included four types of livestock: beef, dairy, hog, and broiler. To reduce computational complexity, we chose to incorporate only beef and dairy manure in our demonstration. The objective and constraint formulations for hog and broiler manure would follow the same structure as those for beef and dairy.
 
 \subsection{Method Justification and Adaptation}
@@ -81,7 +288,9 @@ In particular, we selected the amount of N\textsubscript{2}O emissions as the pr
 \subsection{Implementation and Results}
 The implementation details for the objective and constraint functions are covered in this section.
 
-\subsubsection*{Primary objective: N\textsubscript{2}O emissions estimation}
+\subsubsection{Objective and Constraint Equations}
+
+\textbf{Primary objective: N\textsubscript{2}O emissions estimation}
 
 Based on the emissions component assumption, the total N\textsubscript{2}O emissions are composed of transportation emissions, upgrading emissions, and leftover manure management emissions. Transportation emissions were estimated by evaluating all feasible origin–destination (OD) cell pairs. For each OD pair, we calculated the total distance required to transport the optimized mass of beef and dairy cattle manure from the origin to the destination. Multiplying this total distance by the N\textsubscript{2}O emission factor yields the transportation emissions. The detailed formulation is provided below (Equation 1).
 
@@ -125,7 +334,8 @@ where:
   \item $EF_d$: Emissions factor of N\textsubscript{2}O from diary cattle (kg N\textsubscript{2}O per tonne of manure)
 \end{itemize}
 
-\subsubsection*{Secondary objective: Number of AD plants}
+\vspace{10pt}
+\textbf{Secondary objective: Number of AD plants}
 
 The number of AD plants is defined as the number of destination cells that receive a positive mass of livestock manure transported from other locations, as formulated in Equation 4.
 
@@ -140,7 +350,9 @@ where:
   \item $m_{d, (o, d)}$: Mass of diary cattle transported from origin to destination
 \end{itemize}
 
-\subsubsection*{Manure supply constraint}
+\vspace{10pt}
+\textbf{Manure supply constraint}
+
 For each origin cell, the total mass of manure transported to destination cells must not exceed the initial manure supply available at that location, as described in Equation 5.
 
 \begin{equation}
@@ -154,7 +366,9 @@ where:
   \item $m_{d,o}$: Mass of diary cattle initially available at origin
 \end{itemize}
 
-\subsubsection*{Digester capacity constraint}
+\vspace{10pt}
+\textbf{Digester capacity constraint}
+
 For each destination cell with an AD plant, the total mass of feedstock processed must fall within the allowable operating range of the digester’s capacity, as defined in Equation 6.
 \begin{equation}
   S_{MIN} \leq \sum_o (m_{b, (o, d)} + m_{d, (o, d)}) \leq S_{MAX}
@@ -167,30 +381,91 @@ where:
   \item $m_{d, (o, d)}$: Mass of diary cattle transported from origin to destination
 \end{itemize}
 
-\begin{center}
-  \begin{tabular}{|p{3cm} | p{5cm} | p{6cm}|}
+\subsubsection{Key Results}
+
+To apply the $\varepsilon$-constraint method, we first ignored the secondary objective and focused solely on minimizing N\textsubscript{2}O emissions. Solving the model using the Gurobi solver yielded a global minimum N\textsubscript{2}O emission of 108,438.0874 kg.
+
+To address the secondary objective of minimizing the number of AD plants, we incorporated the minimized N\textsubscript{2}O emissions as an additional constraint. Specifically, we introduced a factor 
+$f$, representing a multiple of the minimized emissions, to define the minimum allowable emissions threshold, as shown in Equation 7.
+\begin{equation}
+  E_{TRAN} + E_{UG} + E_{LEFT} \leq f \times 108438.0874
+\end{equation}
+where:
+\begin{itemize}
+  \item $E_{TRAN}$: Total transportation emissions of N\textsubscript{2}O
+  \item $E_{UG}$: Total emissions of N\textsubscript{2}O from biogas upgrading
+  \item $E_{LEFT}$: Total emissions of N\textsubscript{2}O from left over manure
+  \item $f$: Factor representing a multiple of the minimized emissions
+\end{itemize}
+The values of $f$ were set to 1.0, 1.25, 1.5, 2.0, and 3.0 to approximate the Pareto front. The results of the optimization are summarized in Table 3.
+\begin{table}[h]
+  \centering
+  \begin{tabular}{|p{1.5cm} | p{5cm} | p{6cm}|}
   \hline
-\rowcolor{gray!30}
-  Epsilon factor &  Number of AD plants & Minimised N\textsubscript{2}O emissions (kg) \\ \hline
-  1.0 &  200 & 108438.0874 \\ \hline
-  1.25 &  159 & 135613.7054 \\ \hline
-  1.5 &  140 & 162736.4464 \\ \hline
-  2.0 &  115 & 216981.9286 \\ \hline
-  3.0 &  79 & 325472.8929 \\ \hline
+  \rowcolor{gray!30}
+  $f$ & Number of AD plants & Minimized N\textsubscript{2}O emissions (kg) \\ \hline
+  1.0 & 200 & 108438.0874 \\ \hline
+  1.25 & 159 & 135613.7054 \\ \hline
+  1.5 & 140 & 162736.4464 \\ \hline
+  2.0 & 115 & 216981.9286 \\ \hline
+  3.0 & 79 & 325472.8929 \\ \hline
   \end{tabular}
-\end{center}
+  \caption{Number of AD plants and minimized N\textsubscript{2}O emissions under different $f$ values}
+  \label{tab:adplants_emissions}
+\end{table}
+
+The Pareto efficient space is illustrated in the Figure 2. It can be observed that N\textsubscript{2}O emissions decrease smoothly as the number of AD plants increases. The convexity of the Pareto curve suggests that the marginal effectiveness of additional AD plants in reducing emissions diminishes as more plants are constructed.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{emissions_vs_num_plants.png}
+  \caption{Pareto Efficient Space for the original study and the recreation}
+  \label{fig:pareto_curve}
+\end{figure}
+
 
 \subsection{Critical Discussion}
-Reflect on what was learned, the effectiveness of the approach, and possible future improvements.
+
+\subsubsection{What Was Learned}
+
+Through the application of the $\varepsilon$-constraint method, we gained a deeper understanding of multi-objective optimization techniques, particularly how to balance conflicting objectives, such as minimizing N\textsubscript{2}O emissions and minimizing the number of AD plants.
+
+We also learned the practical importance of model formulation decisions, including the effects of simplifying assumptions (e.g., geospatial discretization, manure type selection) on computational tractability and solution quality.
+
+Additionally, by experimenting with different f values, we observed how the shape and convexity of the Pareto frontier reflect trade-offs between objectives, providing insights into the diminishing marginal benefits of expanding AD infrastructure.
+
+\subsubsection{Effectiveness of the Approach}
+The $\varepsilon$-constraint method proved effective in systematically exploring the trade-off between emissions reduction and infrastructure costs. It allowed for flexible adjustment of the minimum emissions threshold and facilitated the construction of an approximate Pareto efficient space.
+
+The optimization results were largely consistent with the original study, validating the correctness of the modeling approach despite some differences in solver choice (Gurobi vs. CPLEX) and OD pair filtering criteria.
+
+However, the approach was sensitive to solver settings, computational resources, and problem size — particularly in cases involving large numbers of binary decision variables.
+
+\subsubsection{Possible Future Improvements}
+Several potential improvements could be explored in future work:
+Solver Tuning: Further fine-tuning solver parameters (e.g., MIP gap tolerances, branching strategies) could improve solution speed and precision.
+\begin{itemize}
+  \item \textbf{Relaxation Techniques}: Introducing problem relaxation strategies (e.g., Lagrangian relaxation) could make solving large-scale instances more efficient.
+  \item \textbf{Expanded Scope}: Incorporating all manure types (beef, dairy, hog, broiler) would yield a more comprehensive emissions assessment.
+  \item \textbf{Enhanced Geospatial Modeling}: Using finer grid resolutions or real farm-level data instead of 5 km × 5 km grids could improve geographic accuracy.
+  \item \textbf{Consideration of Additional Emissions Factors}: Including food waste emissions and accounting for emissions offsets from renewable natural gas utilization would provide a more complete environmental impact analysis.
+  \item \textbf{Alternative Multi-Objective Methods}: Exploring other multi-objective optimization techniques, such as weighted sum or evolutionary algorithms (e.g., NSGA-II), could offer additional perspectives on the trade-off surface.
+\end{itemize}
 
 
 \section{Conclusion}
-Summarize your findings and learning outcomes from both parts of the project.
+In this project, we successfully reproduced and extended a multi-objective optimization framework for planning anaerobic digestion (AD) infrastructure in Ontario, Canada. In Part 1, we replicated the trade-off analysis between maximizing renewable energy production and minimizing total system cost, achieving results closely aligned with the original study. In Part 2, we adapted the model to examine the trade-off between minimizing N\textsubscript{2}O emissions and limiting the number of AD plants. Using the $\varepsilon$-constraint method and the Gurobi solver, we demonstrated the method's flexibility in addressing different sustainability objectives. Through this work, we gained deeper insights into multi-objective optimization techniques and identified future directions for model expansion, including incorporating additional manure types, refining geospatial modeling, and exploring alternative optimization techniques to further refine the optimization framework.
 
 \section*{References}
-Include full citations for all papers, datasets, and tools used.
+\begin{itemize}
+  \item Mukherjee, U., Tolson, B., Granito, C., Basu, N., Moreno, J., Saari, R., Bindas, S. (2025). \textit{A Landscape approach to Waste Management at the Food-Water-Energy Nexus: Spatial optimization Modelling for Biodigester Locations} [Manuscript in preparation].
+  \item Mavrotas, G. (2009). \textit{Effective implementation of the $\varepsilon$-constraint method in multi-objective mathematical programming problems}. Applied Mathematics and Computation, 213(2), 455–465. \url{https://doi.org/10.1016/j.amc.2009.03.037}
+  \item Bindas, S. (2024). \textit{Atmospheric emissions associated with the use of biogas in Ontario} (Master’s thesis, University of Waterloo). University of Waterloo's Institutional Repository. \url{https://uwspace.uwaterloo.ca/items/d0ff0f30-4651-497d-8e08-6c56e2f6532b}
+\end{itemize}
 
-\section*{Appendix (Optional)}
-Include any code snippets, extra figures, or data explanations. You may also provide a GitHub link to your project repository.
+\section*{Appendix}
+The source code developed for this project is hosted at \href{https://github.com/shenghaowang/ece602-introduction-to-optimization-course-project}{this GitHub repository}.
+
+Due to data usage constraints, the dataset is available upon reasonable request from the authors.
 
 \end{document}
