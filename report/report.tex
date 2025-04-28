@@ -1,0 +1,196 @@
+\documentclass[12pt]{article}
+
+% Packages
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[table]{xcolor}
+\usepackage{parskip}
+
+% Formatting
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection.}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection.}{1em}{}
+
+% Title Info
+\title{\textbf{ECE 602: Introduction to Optimization} \\ Final Project Report}
+%\author{Team Name: \\ Team Members: \\ Student IDs:}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Abstract}
+A brief summary of the objectives, methods, and main findings of the project. (150--200 words)
+
+\section{Introduction}
+Provide background on the optimization method, summarize the assigned paper, and outline the objectives of your project.
+
+\section{Reproducible Research (Part 1)}
+\subsection{Method Overview}
+Describe the optimization algorithm used in the assigned paper.
+
+\subsection{Implementation Details}
+Detail your implementation approach, tools, and any assumptions.
+
+\subsection{Results and Comparison}
+Present and compare your results with those in the original paper. Use figures/tables as needed.
+
+\subsection{Analysis and Discussion}
+Discuss discrepancies, difficulties, and insights. Comment on the method's strengths and weaknesses.
+
+\section{Code Recycling and Extension (Part 2)}
+The second objective of this project is to reapply the $\varepsilon$-constraint method to a different multi-objective optimization problem. Specifically, we shift our focus to addressing the issue of greenhouse gas (GHG) emissions in the context of manure management.
+
+\subsection{New Problem Description}
+The problem for Part 2 is formulated based on research conducted by Bindas (2024), which examines GHG emissions resulting from the use of livestock and food waste to produce biogas in Ontario. Waste feedstocks can be processed through anaerobic digestion (AD) to reduce emissions while generating renewable natural gas. However, there is an inherent trade-off between minimizing GHG emissions and managing the number of AD plants needed, which impacts cost efficiency. To address this trade-off, we define the following optimization problem on the high level:
+\begin{itemize}
+  \item Primary objective: Minimize GHG emissions, with a specific focus on nitrous oxide (N\textsubscript{2}O). Other alternative gases, such as methane (CH\textsubscript{4}) and carbon dioxide (CO\textsubscript{2}), could also be considered.
+  \item Secondary objective: Minimize the number of AD plants required.
+  \item Feedstock constraint: The amount of feedstock transported to AD plants must not exceed the available supply at various locations across Ontario.
+  \item Digester capacity constraint: The amount of feedstock processed at each AD plant must fall within the allowable operational capacity of the digester.
+\end{itemize}
+Solving this optimization problem will identify the optimal locations for AD plants that minimize GHG emissions while balancing infrastructure costs.
+
+\noindent To ensure the optimization problem remains solvable within our limited computational resources, the following assumptions were made to simplify the model.
+
+\subsubsection*{Emissions Component Assumption}
+Based on the study by Bindas (2024), we consider the following three major sources of GHG emissions associated with the construction and operation of AD plants for processing livestock waste:
+\begin{itemize}
+  \item Transportation Emissions: GHG emissions generated during the transportation of feedstocks to the AD plants.
+  \item Upgrading Emissions: GHG emissions produced during the upgrading of biogas into biomethane for energy production.
+  \item Leftover Manure Management Emissions: GHG emissions from livestock manure that is not transported to AD plants.
+\end{itemize}
+It is important to note that emissions from food waste and the emissions offset resulting from the utilization of renewable natural gas were not considered in this analysis.
+
+\subsubsection*{Gridded Geospatial Assumption for Manure Site Distribution}
+Consistent with Part 1, we represent manure sites in Ontario using a 5 km × 5 km geospatial grid. Each of the 3,996 cells is treated as a potential site for biogas plant development.
+
+\subsubsection*{Manure Type Assumption}
+The original study by Bindas (2024) included four types of livestock: beef, dairy, hog, and broiler. To reduce computational complexity, we chose to incorporate only beef and dairy manure in our demonstration. The objective and constraint formulations for hog and broiler manure would follow the same structure as those for beef and dairy.
+
+\subsection{Method Justification and Adaptation}
+Similar to Part 1, this problem is formulated as a mixed-integer multi-objective optimization problem, where the locations of AD plants are modeled as binary decision variables. Because minimizing N\textsubscript{2}O emissions typically requires building more AD plants, it is not possible to minimize both objectives simultaneously. Therefore, the $\varepsilon$-constraint method is again an appropriate approach for solving this problem.
+
+In particular, we selected the amount of N\textsubscript{2}O emissions as the primary objective. This emission value, scaled by a factor $f$, is then used as a constraint, where $f$ represents a multiple of the minimum achievable emissions to serve as a upper bound. To approximate the Pareto front, we used values of $f=1, 1.25, 1.5, 2 \text{ and } 3$.
+
+\subsection{Implementation and Results}
+The implementation details for the objective and constraint functions are covered in this section.
+
+\subsubsection*{Primary objective: N\textsubscript{2}O emissions estimation}
+
+Based on the emissions component assumption, the total N\textsubscript{2}O emissions are composed of transportation emissions, upgrading emissions, and leftover manure management emissions. Transportation emissions were estimated by evaluating all feasible origin–destination (OD) cell pairs. For each OD pair, we calculated the total distance required to transport the optimized mass of beef and dairy cattle manure from the origin to the destination. Multiplying this total distance by the N\textsubscript{2}O emission factor yields the transportation emissions. The detailed formulation is provided below (Equation 1).
+
+\begin{equation}
+  E_{TRAN} = \sum_{\text{(o, d)}}\frac{(m_{b, (o, d)} + m_{d, (o, d)}) \times VKT_{(o, d)}}{\gamma} \times EF_{TRAN}
+\end{equation}
+where:
+\begin{itemize}
+  \item $E_{TRAN}$: Total transportation emissions of N\textsubscript{2}O
+  \item $m_{b, (o, d)}$: Mass of beef cattle transported from origin to destination
+  \item $m_{d, (o, d)}$: Mass of diary cattle transported from origin to destination
+  \item $VKT_{(o, d)}$: Vehicle kilometers traveled (km) from origin to destination
+  \item $\gamma$: Truck carrying capacity (22.7 tonnes for manure hauling vehicles)
+  \item $EF_{TRAN}$: Emissions factor of N\textsubscript{2}O for transportation
+\end{itemize}
+
+The upgrading emissions are governed by Equation 2. The energy value of the natural gas produced from manure is calculated in the same manner as in Part 1.
+
+\begin{equation}
+  E_{UG} = \theta \times EF_{UG} \times \eta_{UG} \times \frac{0.947817 \ MMBtu}{GJ}
+\end{equation}
+where:
+\begin{itemize}
+  \item $E_{UG}$: Total emissions of N\textsubscript{2}O from biogas upgrading
+  \item $\theta$: Energy worth of natural gas produced from beef and diary manure (GJ)
+  \item $EF_{UG}$: Emissions factor of N\textsubscript{2}O from upgrading biogas (lbs/MMBtu)
+  \item $\eta_{UG}$: Efficiency of upgrading process (0.85)
+\end{itemize}
+
+Additionally, manure that is not processed by AD plants continues to emit N\textsubscript{2}O. These emissions are calculated by multiplying the mass of the leftover manure by the baseline emissions factor, as shown in Equation 3.
+
+\begin{equation}
+  E_{LEFT} = \sum_o\biggl((m_{b,o} - \sum_d m_{b, (o, d)}) \times EF_{b} + (m_{d,o} - \sum_d m_{d, (o, d)}) \times EF_d \biggr)
+\end{equation}
+where:
+\begin{itemize}
+  \item $E_{LEFT}$: Total emissions of N\textsubscript{2}O from left over manure
+  \item $m_{b,o}$: Mass of beef cattle initially available at origin
+  \item $m_{d,o}$: Mass of diary cattle initially available at origin
+  \item $EF_b$: Emissions factor of N\textsubscript{2}O from beef cattle (kg N\textsubscript{2}O per tonne of manure)
+  \item $EF_d$: Emissions factor of N\textsubscript{2}O from diary cattle (kg N\textsubscript{2}O per tonne of manure)
+\end{itemize}
+
+\subsubsection*{Secondary objective: Number of AD plants}
+
+The number of AD plants is defined as the number of destination cells that receive a positive mass of livestock manure transported from other locations, as formulated in Equation 4.
+
+\begin{equation}
+  N_{AD} = \sum_d \mathbb{I}(m_{b, (o, d)} + m_{d, (o, d)} > 0)
+\end{equation}
+where:
+\begin{itemize}
+  \item $N_{AD}$: Number of AD plants
+  \item $\mathbb{I}$: Indicator function
+  \item $m_{b, (o, d)}$: Mass of beef cattle transported from origin to destination
+  \item $m_{d, (o, d)}$: Mass of diary cattle transported from origin to destination
+\end{itemize}
+
+\subsubsection*{Manure supply constraint}
+For each origin cell, the total mass of manure transported to destination cells must not exceed the initial manure supply available at that location, as described in Equation 5.
+
+\begin{equation}
+  \sum_d (m_{b, (o, d)} + m_{d, (o, d)}) \leq m_{b,o} + m_{d,o}
+\end{equation}
+where:
+\begin{itemize}
+  \item $m_{b, (o, d)}$: Mass of beef cattle transported from origin to destination
+  \item $m_{d, (o, d)}$: Mass of diary cattle transported from origin to destination
+  \item $m_{b,o}$: Mass of beef cattle initially available at origin
+  \item $m_{d,o}$: Mass of diary cattle initially available at origin
+\end{itemize}
+
+\subsubsection*{Digester capacity constraint}
+For each destination cell with an AD plant, the total mass of feedstock processed must fall within the allowable operating range of the digester’s capacity, as defined in Equation 6.
+\begin{equation}
+  S_{MIN} \leq \sum_o (m_{b, (o, d)} + m_{d, (o, d)}) \leq S_{MAX}
+\end{equation}
+where:
+\begin{itemize}
+  \item $S_{MIN}$: Minimum digester capacity (tonnes)
+  \item $S_{MAX}$: Maximum digester capacity (tonnes)
+  \item $m_{b, (o, d)}$: Mass of beef cattle transported from origin to destination
+  \item $m_{d, (o, d)}$: Mass of diary cattle transported from origin to destination
+\end{itemize}
+
+\begin{center}
+  \begin{tabular}{|p{3cm} | p{5cm} | p{6cm}|}
+  \hline
+\rowcolor{gray!30}
+  Epsilon factor &  Number of AD plants & Minimised N\textsubscript{2}O emissions (kg) \\ \hline
+  1.0 &  200 & 108438.0874 \\ \hline
+  1.25 &  159 & 135613.7054 \\ \hline
+  1.5 &  140 & 162736.4464 \\ \hline
+  2.0 &  115 & 216981.9286 \\ \hline
+  3.0 &  79 & 325472.8929 \\ \hline
+  \end{tabular}
+\end{center}
+
+\subsection{Critical Discussion}
+Reflect on what was learned, the effectiveness of the approach, and possible future improvements.
+
+
+\section{Conclusion}
+Summarize your findings and learning outcomes from both parts of the project.
+
+\section*{References}
+Include full citations for all papers, datasets, and tools used.
+
+\section*{Appendix (Optional)}
+Include any code snippets, extra figures, or data explanations. You may also provide a GitHub link to your project repository.
+
+\end{document}
