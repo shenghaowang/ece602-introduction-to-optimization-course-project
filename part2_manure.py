@@ -131,7 +131,7 @@ def create_model(
         energy_m = sum(10.7*((m_.M_beef_moved[i, j] + m_.M_diary_moved[i, j]) * \
                              m_.M_pot_out_plant[i]) for (i,j) in m_.FEAS_M)
         upgrading_emissions = energy_m * config.Upgrade_biogas_EF * \
-            config.Upgrading_efficiency * 0.947817 * 0.453592 # convert lb to kg
+            config.Upgrading_efficiency * 0.947817 * config.lb_to_kg # convert lb to kg
 
         # Leftover manure management emissions
         leftover_emissions = sum(

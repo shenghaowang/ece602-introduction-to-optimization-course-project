@@ -37,6 +37,7 @@ class Config:
     Manure_truck_capacity: float = 22.7  # tonnes
     FW_truck_capacity: float = 20.0  # tonnes
     Upgrading_efficiency: float = 0.85  # fraction of biogas that is upgraded
+    lb_to_kg: float = 0.453592 # conversion factor from pounds to kg
 
 
 @dataclass
