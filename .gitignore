@@ -1,4 +1,4 @@
 data_class_project.xlsx
 report/*
-!report/project.tex
-!report/project.pdf
+!report/*.tex
+!report/*.pdf
